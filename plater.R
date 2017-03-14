@@ -43,4 +43,4 @@ full %>%
 # try a facet graph
 full %>% 
   filter(template==1, gene=="col1A1") %>% 
-ggplot(aes(x=conc, y=Ct)) + geom_jitter() + facet_grid(drug ~ TGFbeta)
+ggplot(aes(x=as.factor(conc), y=Ct)) + geom_quasirandom() + facet_grid(drug ~ TGFbeta)
