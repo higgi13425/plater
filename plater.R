@@ -60,6 +60,7 @@ full_un <- full %>% filter(drug==0, conc==0, TGFbeta==0)
 for(x in 1:nrow(drug_list)){
   new<- full_un
   new$drug<-drug_list$drug[x]
+  new$samplenum <- new$samplenum -100
   new$Wells <- "new un"
   full<- rbind(full, new)
 }
@@ -71,23 +72,36 @@ full_t <- full %>% filter(drug==0, conc==0, TGFbeta==1)
 for(x in 1:nrow(drug_list)){
   new<- full_t
   new$drug<-drug_list$drug[x]
+  new$samplenum <- new$samplenum -100
   new$Wells <- "new T"
   full<- rbind(full, new)
 }
 
+# now calculate dCt, by taking GAPDH Ct, subracting corresponding Ct for each gene in same samplenum 
 
-#now summarize replicates by mean Ct
+for(x in 1:max(full$samplenum)){
+  full$dCt[x] <- full$Ct[full$samplenum==x & full$gene=="GAPDH"] - full$Ct[full$samplenum==x & full$gene=="col1A1"]
+}
+
+#now summarize replicates by mean dCt
 full %>%
+  filter(gene != "GAPDH") %>% 
   group_by(gene, TGFbeta, drug, conc) %>% 
-  summarize (mCt=mean(Ct))
+  summarize (mdCt=mean(dCt)) ->
+  summdf
+
+#now calculate fold change (ddCt vs. untreated)
+summdf$undCt <- summdf$mdCt[summdf$TGFbeta==0 & summdf$drug==0 & summdf$conc==0]
+summdf$fold_change <- 2^(summdf$mdCt - summdf$undCt)
 
 # try a facet graph
 #first label levels of TGFbeta stimulus
-full$TGFbeta <- as.factor(full$TGFbeta)
-levels(full$TGFbeta) <- c("no stimulus", "TGFbeta 1 mM")
+summdf$TGFbeta <- as.factor(summdf$TGFbeta)
+levels(summdf$TGFbeta) <- c("no stimulus", "TGFbeta 1 mM")
 
-full %>% 
-  filter(gene=="col1A1", drug!=0) %>% 
-ggplot(aes(x=as.factor(conc), y=Ct)) + geom_quasirandom() + facet_grid(drug ~ as.factor(TGFbeta)) + 
-    labs(x="Drug Concentration (nM)") + 
-  theme(axis.title = element_text(family="Arial", face="bold", size=16))
+summdf %>% filter(drug!=0) %>% 
+ggplot(aes(x=as.factor(conc), y=fold_change)) + geom_quasirandom() + facet_grid(drug ~ as.factor(TGFbeta)) + 
+    labs(x="Drug Concentration (nM)") + labs(title="Collagen Expression") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(axis.title = element_text(family="Arial", face="bold", size=16)) +
+  theme(title = element_text(family="Arial", face="bold", size=20)) 
